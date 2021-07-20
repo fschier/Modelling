@@ -1,0 +1,77 @@
+---
+title: "2021_06_23_ml"
+author: "Felix"
+date: "23 6 2021"
+output: html_output
+---
+```{r setup include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# tidyverse setup
+library(tidyverse)
+library(scales)
+library(lubridate)
+library(janitor)
+
+
+# Tidymodels setup
+library(tidymodels)
+doParallel::registerDoParallel()
+```
+
+
+```{r}
+train <- read_csv("C:/Users/felix/Downloads/train.csv", guess_max = 10000)
+test <- read_csv("C:/Users/felix/Downloads/test.csv",  guess_max = 10000)
+
+cv_folds <- vfold_cv(train, v = 5)
+```
+
+```{r}
+library(GGally)
+train %>%
+  select(geek_rating, max_time, min_time, owned, age, num_votes) %>% 
+  ggpairs()
+```
+
+definitly include owned and num_votes as predictors; 
+
+```{r visualisations}
+train %>%
+  ggplot(aes(geek_rating, num_votes)) +
+  geom_point() +
+  geom_smooth() +
+  scale_y_log10()
+
+
+train %>%
+  ggplot(aes(geek_rating, owned)) +
+  geom_point() +
+  geom_smooth() +
+  scale_y_log10()
+```
+
+```{r}
+lm_spec <-
+  linear_reg() %>%
+  set_engine('lm')
+
+basic_rec <- recipe(geek_rating ~ num_votes + owned,
+                    data = train) %>%
+  step_log(all_numeric(), -all_outcomes())
+
+
+lm_wflow <- workflow() %>%
+  add_model(lm_spec) %>%
+  add_recipe(basic_rec)
+
+fit(lm_wflow, data = train) %>%
+  tidy()
+
+
+lm_wflow %>%
+  fit_resamples(resamples = cv_folds) %>%
+  collect_metrics()
+```
+
+
