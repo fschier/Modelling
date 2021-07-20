@@ -16,7 +16,7 @@ library(janitor)
 
 # Tidymodels setup
 library(tidymodels)
-doParallel::registerDoParallel()
+doParallel::registerDoParallel(cores = 4)
 ```
 
 
@@ -27,6 +27,8 @@ test <- read_csv("C:/Users/felix/Downloads/test.csv",  guess_max = 10000)
 cv_folds <- vfold_cv(train, v = 5)
 ```
 
+### EDA
+
 ```{r}
 library(GGally)
 train %>%
@@ -34,7 +36,7 @@ train %>%
   ggpairs()
 ```
 
-definitly include owned and num_votes as predictors; 
+definitely include owned and num_votes as predictors; 
 
 ```{r visualisations}
 train %>%
@@ -50,6 +52,8 @@ train %>%
   geom_smooth() +
   scale_y_log10()
 ```
+
+### Models
 
 ```{r}
 lm_spec <-
