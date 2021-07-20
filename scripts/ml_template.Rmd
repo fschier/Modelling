@@ -34,10 +34,13 @@ grid_control <- control_grid(save_pred = TRUE,
 ```
 
 ```{r}
-folder <- "~/Downloads/<FOLDER_NAME_HERE>"
-dataset <- read_csv(paste0(folder, "train.csv"))
-holdout <- read_csv(paste0(folder, "test.csv"))
-sample <- read_csv(paste0(folder, "sample_submission.csv"))
+path <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
+
+dataset <- read_csv(file.path(path, "data", "board_games_train.csv"), guess_max = 10000)
+holdout <- read_csv(file.path(path, "data",  "board_games_test.csv"),  guess_max = 10000)
+sample <- read_csv(file.path(path, "data",  "board_games_test.csv"))
+
+
 # What are we predicting?
 colnames(sample)
 set.seed(2021)

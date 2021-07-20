@@ -16,15 +16,24 @@ library(janitor)
 
 # Tidymodels setup
 library(tidymodels)
+tidymodels::tidymodels_prefer()
+
 doParallel::registerDoParallel(cores = 4)
 ```
 
 
 ```{r}
-train <- read_csv("C:/Users/felix/Downloads/train.csv", guess_max = 10000)
-test <- read_csv("C:/Users/felix/Downloads/test.csv",  guess_max = 10000)
+path <- dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 
-cv_folds <- vfold_cv(train, v = 5)
+dataset <- read_csv(file.path(path, "data", "board_games_train.csv"), guess_max = 10000)
+holdout <- read_csv(file.path(path, "data",  "board_games_test.csv"),  guess_max = 10000)
+#sample <- ""
+
+spl <- initial_split(dataset, .prop = .8)
+train <- training(spl)
+test <- testing(spl)
+
+cv_folds <- vfold_cv(train, v = 5, strata = geek_rating)
 ```
 
 ### EDA
@@ -56,8 +65,7 @@ train %>%
 ### Models
 
 ```{r}
-lm_spec <-
-  linear_reg() %>%
+lm_spec <- linear_reg() %>%
   set_engine('lm')
 
 basic_rec <- recipe(geek_rating ~ num_votes + owned,
@@ -78,4 +86,71 @@ lm_wflow %>%
   collect_metrics()
 ```
 
+* Just the linear Models containg 2 predictos already gives us an rsq of .721 and an rmse of .259
+trying an xgboost next
+ some recommended preprocessing for xgboost models: https://www.tmwr.org/pre-proc-table.html, needs near to none
 
+```{r}
+xg_spec <-
+  boost_tree(tree_depth = tune(), trees = 1000, learn_rate = tune(), mtry = tune(), min_n = tune(), loss_reduction = tune(), sample_size = tune()) %>%
+  set_engine('xgboost') %>%
+  set_mode('regression')
+
+
+xg_rec <- recipe(geek_rating ~ min_players + max_players +  owned +
+                 avg_time + min_time + max_time + year + geek_rating + 
+                 num_votes + age + category1, data = train) %>%
+  step_other(category1, threshold = 0.02) %>%
+  step_dummy(category1)
+
+xg_rec %>%
+  prep() %>%
+  juice()
+
+xg_wfl <- workflow() %>%
+  add_recipe(xg_rec) %>%
+  add_model(xg_spec)
+
+
+
+# Need a grid for tuning variables; could be specified in tune_grid() or defined before:
+xg_grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(),
+  finalize(mtry(), cv_folds),
+  learn_rate(),
+  size = 30
+  )
+
+xg_res <- xg_wfl %>% tune_grid(
+  xg_wfl,
+  resamples = cv_folds,
+  grid = xg_grid,
+  control = control_grid(save_pred = TRUE)
+  )
+
+xg_res %>%
+  collect_metrics()
+
+autoplot(xg_res)
+show_best(xg_res, "rsq")
+
+xg_final <- xg_wfl %>%
+  finalize_workflow(select_best(xg_res, "rsq"))
+
+library(vip)
+xg_final %>%
+  fit(data = train) %>%
+  pull_workflow_fit() %>%
+  vip(geom = "point")
+
+
+# To fit on train and finally evaluate on test we can use the last_fit() function
+
+final_res <- last_fit(xg_final, spl)
+collect_metrics(final_res)
+```
+
+final Model with an rsq of .857 and an rmse of .179 which is pretty good considering the scale of [5.64024 - 8.50163]
