@@ -154,3 +154,13 @@ collect_metrics(final_res)
 ```
 
 final Model with an rsq of .857 and an rmse of .179 which is pretty good considering the scale of [5.64024 - 8.50163]
+
+```{r}
+final_res %>%
+  collect_predictions() %>%
+  select(.pred) %>%
+  bind_cols(geek_rating = test$geek_rating) %>%
+  ggplot(aes(.pred, geek_rating)) +
+  geom_point()
+```
+
